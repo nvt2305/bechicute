@@ -300,8 +300,8 @@
     }
 
     document.getElementById('startButton').addEventListener('click', () => {
+      userStartAudio();
       if (!started && bgMusic && bgMusic.isLoaded()) {
-        bgMusic.setVolume(0.5);
         bgMusic.play();
         startTime = millis();
         started = true;
