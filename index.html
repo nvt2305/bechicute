@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>LOVE CHI ❤️</title>
   <style>
     body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background-color: #111;
+      background-color: #000;
     }
 
     #startButton {
@@ -32,110 +32,283 @@
   </style>
 </head>
 <body>
+  <button id="startButton">Bắt đầu ❤️</button>
 
-<button id="startButton">Bắt đầu ❤️</button>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
 
-<!-- p5.js và p5.sound -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+  <script>
+    let particles = [];
 
-<script>
-  let bgMusic;
-  let started = false;
-  let heartSize = 0;
-  let targetSize = 15;
-  let growthSpeed = 0.05;
+    class CuteParticle {
+      constructor() {
+        this.reset();
+      }
 
-  // Lời bài hát: thời gian giây + nội dung
-  const lyrics = [
-    { time: 6,    text: "Gửi tới em ❤️" },
-    { time: 11,    text: "Anh xin lỗi..." },
-    { time: 16,    text: "Vì những lúc anh vô tâm, làm em buồn." },
-    { time: 22,    text: "Anh không cố ý, nhưng lại làm em tổn thương." },
-    { time: 28,   text: "Anh yêu em rất nhiều." },
-    { time: 34,   text: "Xin em tha thứ cho anh..." },
-  ];
+      reset() {
+        this.x = random(width);
+        this.y = random(height);
+        this.size = random(8, 20);
+        this.speedY = random(-0.2, -1.0);
+        this.alpha = random(150, 255);
+        this.type = random(['heart', 'bubble', 'sparkle']);
+        this.rotation = random(TWO_PI);
+        this.rotationSpeed = random(-0.01, 0.01);
+      }
 
-  let currentLyric = "";
+      update() {
+        this.y += this.speedY;
+        this.alpha -= 0.4;
+        this.rotation += this.rotationSpeed;
+        if (this.y < -20 || this.alpha <= 0) this.reset();
+      }
 
-  function preload() {
-    soundFormats('mp3', 'ogg');
-    bgMusic = loadSound('audio.mp3');
-  }
+      display() {
+        push();
+        translate(this.x, this.y);
+        rotate(this.rotation);
+        noStroke();
 
-  function setup() {
-    createCanvas(window.innerWidth, window.innerHeight);
-    textAlign(CENTER, CENTER);
-    textSize(16);
-    textFont('sans-serif');
-    fill(255);
-    noStroke();
-  }
+        if (this.type === 'heart') {
+          fill(255, 100, 150, this.alpha);
+          beginShape();
+          for (let t = 0; t < TWO_PI; t += 0.1) {
+            let x = 16 * pow(sin(t), 3);
+            let y = - (13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t));
+            vertex((x * this.size) / 32, (y * this.size) / 32);
+          }
+          endShape(CLOSE);
+        } else if (this.type === 'bubble') {
+          fill(255, 255, 255, this.alpha * 0.3);
+          ellipse(0, 0, this.size * 1.2, this.size * 1.2);
+        } else if (this.type === 'sparkle') {
+          fill(255, 255, 200, this.alpha);
+          for (let i = 0; i < 4; i++) {
+            ellipse(0, 0, this.size / 2, this.size);
+            rotate(PI / 4);
+          }
+        }
 
-  function drawHeart(x, y, size) {
-    stroke(255, 0, 100);
-    strokeWeight(2);
-    noFill();
-    beginShape();
-    for (let t = 0; t < TWO_PI; t += 0.01) {
-      let x1 = 16 * pow(sin(t), 3);
-      let y1 = - (13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t));
-      vertex(x + size * x1, y + size * y1);
-    }
-    endShape(CLOSE);
-  }
-
-  function drawLyrics() {
-    let t = bgMusic.currentTime();
-    for (let i = 0; i < lyrics.length; i++) {
-      if (t >= lyrics[i].time && (i === lyrics.length - 1 || t < lyrics[i + 1].time)) {
-        currentLyric = lyrics[i].text;
-        break;
+        pop();
       }
     }
 
-    if (currentLyric && heartSize > 4) {
-      fill(255, 255, 255, 230);
+    let bgMusic;
+    let bgImages = [];
+    let currentBgIndex = 0;
+    let switchInterval = 20000;
+    let lastSwitchTime = 0;
+
+    let heartMask, heartImage;
+    let started = false;
+    let heartSize = 0;
+    const targetSize = 8;
+    const growthSpeed = 0.05;
+
+    let currentLyric = "";
+    let lyricStartTime = 0;
+    let displayedChars = 0;
+
+    let cuteParticles = [];
+    let maxParticles = 100;
+    let particleInterval = 500;
+    let lastParticleTime = 0;
+
+    let prevBgIndex = 0;
+    let fadeAlpha = 0;
+    let fadeDuration = 1000;
+
+    let startTime = null;
+
+    const lyrics = [
+      { time: 6, text: "Gửi tới em ❤️" },
+      { time: 10, text: "Anh xin lỗi..." },
+      { time: 14, text: "Vì những lúc anh vô tâm, làm em buồn." },
+      { time: 19, text: "Anh không cố ý, nhưng lại làm em tổn thương." },
+      { time: 24, text: "Anh yêu em rất nhiều." },
+      { time: 28, text: "Xin em tha thứ cho anh..." },
+      { time: 37,  text: "Hình như trong lòng anh đã không còn hình bóng ai ngoài em đâu" },
+      { time: 42,  text: "Hằng đêm, anh nằm thao thức suy tư, chẳng nhớ ai ngoài em đâu" },
+      { time: 46.5,  text: "Vậy nên không cần nói nữa, yêu mà đòi nói trong vài ba câu" },
+      { time: 51,  text: "Cứ cố quá đâm ra lại hâm, uhm, đau hết cả đầu!" },
+      { time: 56,  text: "Đợi chờ em trước nhà từ sáng đến trưa chiều tối, mắc màn đây luôn" },
+      { time: 60,  text: "Ngược nắng hay là ngược gió, miễn anh thấy em tươi vui không buồn" },
+      { time: 64.5,  text: "Chỉ cần có thấy thế thôi, mây xanh chan hòa" },
+      { time: 67,  text: "Thấy thế thôi, vui hơn có quà" },
+      { time: 69,  text: "Và bước kế tiếp anh lại gần hơn chút đó nha" },
+      { time: 72.5,  text: "Rồi ngày ấy cuối cùng đã tìm đến, ta nào đâu hay" },
+      { time: 77.5,  text: "Anh sẽ không để vụt mất đi cơ duyên ông trời trao tay" },
+      { time: 81.5,  text: "Còn đắn đo băn khoăn gì nữa? Tiếp cận em ngay" },
+      { time: 86.5, text: "Cố gắng sao không để em nghi ngờ dù một giây lúc này" },
+      { time: 91, text: "Được đứng bên em anh hạnh phúc, tim loạn nhịp tung bay" },
+      { time: 95.5, text: "Chắc chắn anh thề anh sẽ không bao giờ quên ngày hôm nay" },
+      { time: 99.8, text: "Chính em, chính em, tương tư mình em thôi" },
+      { time: 102.5, text: "Mãi theo sau mình em thôi" },
+      { time: 105, text: "Mãi si mê mình em thôi" },
+      { time: 107.5, text: "Mãi yêu thương mình em" },
+      { time: 109.5, text: "Vậy thì anh xin chết vì người anh thương" },
+      { time: 114, text: "Có biết bao nhiêu điều còn đang vấn vương" },
+      { time: 118.5, text: "Dành cho em, dành hết ân tình anh mang một đời" },
+      { time: 124, text: "Đừng làm trái tim anh đau" },
+      { time: 128, text: "Vậy thì anh xin chết vì người anh thương" },
+      { time: 132.5, text: "Có biết bao nhiêu điều còn đang vấn vương" },
+      { time: 137.5, text: "Dành cho em, dành hết ân tình anh mang một đời" },
+      { time: 142.5, text: "Đừng làm trái tim anh đau" },
+      { time: 150, text: "Hãy cùng nhau, xây dựng một mái ấm hạnh phú nha em ^^" },
+    ];
+
+    function preload() {
+      soundFormats('mp3', 'ogg');
+      bgImages = [
+        loadImage('1.jpg'),
+        loadImage('5.jpg'),
+        loadImage('2.jpg'),
+        loadImage('4.jpg'),
+        loadImage('3.jpg'),
+      ];
+
+      bgMusic = loadSound('audio.mp3', () => {
+        document.getElementById('startButton').disabled = false;
+      }, () => {
+        alert("Không thể tải tệp âm thanh.");
+      });
+    }
+
+    function setup() {
+      createCanvas(window.innerWidth, window.innerHeight);
+      textAlign(CENTER, CENTER);
+      textSize(24);
       noStroke();
-      text(currentLyric, width / 2, height / 2);
-    }
-  }
 
-  function draw() {
-    if (!started) return;
+      heartImage = createGraphics(700, 700);
+      heartMask = createGraphics(700, 700);
 
-    background(17, 17, 17, 25);
-
-    if (heartSize < targetSize) {
-      heartSize += growthSpeed;
+      for (let i = 0; i < 30; i++) {
+        particles.push(new CuteParticle());
+      }
     }
 
-    let time = millis() / 1000;
-    let pulse = sin(time * 2) * 0.5;
-    let currentSize = heartSize + pulse;
-
-    drawHeart(width / 2, height / 2, currentSize);
-    setTimeout(() => {
-      drawLyrics();
-    }, 5900);
-  }
-
-  function windowResized() {
-    resizeCanvas(window.innerWidth, window.innerHeight);
-  }
-
-  document.getElementById('startButton').addEventListener('click', function () {
-    if (!started) {
-      bgMusic.setVolume(0.5);
-      bgMusic.play();
-      started = true;
-      this.style.display = 'none';
-      loop();
+    function drawHeartShape(graphics, x, y, size) {
+      graphics.beginShape();
+      for (let t = 0; t < TWO_PI; t += 0.01) {
+        let x1 = 16 * pow(sin(t), 3);
+        let y1 = - (13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t));
+        graphics.vertex(x + size * x1, y + size * y1);
+      }
+      graphics.endShape(CLOSE);
     }
-  });
 
-  noLoop();
-</script>
+    function drawLyrics(currentTime) {
+      for (let i = 0; i < lyrics.length; i++) {
+        if (currentTime >= lyrics[i].time) {
+          if (i === lyrics.length - 1 || currentTime < lyrics[i + 1].time) {
+            if (currentLyric !== lyrics[i].text) {
+              currentLyric = lyrics[i].text;
+              lyricStartTime = currentTime;
+              displayedChars = 0;
+            }
+            const elapsed = currentTime - lyricStartTime;
+            const charsToShow = floor(elapsed * 1000 / 50);
+            displayedChars = min(charsToShow, currentLyric.length);
+            const visibleText = currentLyric.substring(0, displayedChars);
 
+            fill(255);
+            text(visibleText, width / 2, height * 0.85);
+            break;
+          }
+        }
+      }
+    }
+
+    function draw() {
+      if (!started || !bgMusic || !bgMusic.isPlaying()) return;
+
+      background(0);
+
+      let elapsed = millis() - startTime;
+
+      if (elapsed - lastSwitchTime > switchInterval) {
+        currentBgIndex = (currentBgIndex + 1) % bgImages.length;
+        lastSwitchTime = elapsed;
+      }
+
+      let currentImage = bgImages[currentBgIndex];
+
+      if (heartSize < targetSize) heartSize += growthSpeed;
+
+      let pulse = sin(millis() / 300) * 0.5;
+      let dynamicSize = heartSize + pulse;
+
+      let centerX = width / 2;
+      let centerY = height / 2;
+
+      heartImage.clear();
+      heartMask.clear();
+
+      let heartBoundW = 32 * dynamicSize;
+      let heartBoundH = 26 * dynamicSize;
+
+      let imgRatio = currentImage.width / currentImage.height;
+      let targetRatio = heartBoundW / heartBoundH;
+
+      let drawW, drawH;
+
+      if (imgRatio < targetRatio) {
+        drawW = heartBoundW;
+        drawH = drawW / imgRatio;
+      } else {
+        drawH = heartBoundH;
+        drawW = drawH * imgRatio;
+      }
+
+      heartImage.image(
+        currentImage,
+        (heartImage.width - drawW) / 2,
+        (heartImage.height - drawH) / 2,
+        drawW,
+        drawH
+      );
+
+      heartMask.fill(255);
+      drawHeartShape(heartMask, heartMask.width / 2, heartMask.height / 2 - dynamicSize * 2.5, dynamicSize);
+
+      let masked = heartImage.get();
+      masked.mask(heartMask);
+
+      image(masked, centerX - masked.width / 2, centerY - masked.height / 2);
+
+      stroke(255, 0, 100);
+      strokeWeight(2);
+      noFill();
+      drawHeartShape(this, centerX, centerY - dynamicSize * 2.5, dynamicSize);
+
+      if (millis() - lastParticleTime > particleInterval && cuteParticles.length < maxParticles) {
+        cuteParticles.push(new CuteParticle());
+        lastParticleTime = millis();
+      }
+
+      for (let p of cuteParticles) {
+        p.update();
+        p.display();
+      }
+
+      drawLyrics(bgMusic.currentTime());
+    }
+
+    function windowResized() {
+      resizeCanvas(window.innerWidth, window.innerHeight);
+    }
+
+    document.getElementById('startButton').addEventListener('click', () => {
+      if (!started && bgMusic && bgMusic.isLoaded()) {
+        bgMusic.setVolume(0.5);
+        bgMusic.play();
+        startTime = millis();
+        started = true;
+        document.getElementById('startButton').style.display = 'none';
+        loop();
+      }
+    });
+  </script>
 </body>
 </html>
